@@ -4,89 +4,143 @@
 <meta charset="UTF-8">
 <title>World Strategy Game</title>
 
+<script src="https://d3js.org/d3.v7.min.js"></script>
+
 <style>
 body {
     margin: 0;
-    font-family: Arial;
     background: #0b1a2a;
-    color: white;
+    overflow: hidden;
 }
 
-#map {
-    width: 100%;
+/* карта */
+svg {
+    width: 100vw;
     height: 100vh;
-    background: url('https://upload.wikimedia.org/wikipedia/commons/8/80/World_map_-_low_resolution.svg');
-    background-size: cover;
-    position: relative;
 }
 
-/* държава */
+/* държави */
 .country {
-    position: absolute;
-    padding: 6px 10px;
-    background: rgba(0,0,0,0.5);
+    fill: #2c3e50;
+    stroke: #111;
+    stroke-width: 0.5;
     cursor: pointer;
-    border-radius: 6px;
-    transition: 0.2s;
 }
 
 /* hover */
 .country:hover {
-    background: #3498db;
+    fill: white;
 }
 
-/* когато е взета */
-.taken {
-    background: #e74c3c !important;
+/* claimed */
+.claimed {
+    fill: #2ecc71 !important;
 }
 
+/* текст */
+.label {
+    fill: white;
+    font-size: 10px;
+    pointer-events: none;
+}
+
+/* info */
 #infoBox {
     position: fixed;
     right: 20px;
     top: 20px;
     background: #111;
+    color: white;
     padding: 15px;
     border-radius: 10px;
     display: none;
-    width: 200px;
 }
 </style>
 </head>
 
 <body>
 
-<div id="map">
-    <div class="country" style="top:40%; left:45%;" onclick="selectCountry('Bulgaria')">Bulgaria</div>
-    <div class="country" style="top:35%; left:50%;" onclick="selectCountry('Ukraine')">Ukraine</div>
-    <div class="country" style="top:50%; left:40%;" onclick="selectCountry('Egypt')">Egypt</div>
-</div>
-
+<svg></svg>
 <div id="infoBox"></div>
 
 <script>
-let countries = {
-    Bulgaria: { owner: null },
-    Ukraine: { owner: null },
-    Egypt: { owner: null }
-};
+const svg = d3.select("svg");
+const g = svg.append("g");
 
+let countries = {};
+let zoomLevel = 1;
+
+/* zoom */
+svg.call(d3.zoom()
+    .scaleExtent([1, 8])
+    .on("zoom", (event) => {
+        zoomLevel = event.transform.k;
+        g.attr("transform", event.transform);
+
+        updateLabels();
+    })
+);
+
+/* projection */
+const projection = d3.geoMercator()
+    .scale(150)
+    .translate([window.innerWidth / 2, window.innerHeight / 1.5]);
+
+const path = d3.geoPath().projection(projection);
+
+/* load data */
+d3.json("world.geojson").then(data => {
+
+    g.selectAll("path")
+        .data(data.features)
+        .enter()
+        .append("path")
+        .attr("class", "country")
+        .attr("d", path)
+        .on("click", (event, d) => selectCountry(d.properties.name))
+        .each(function(d){
+            countries[d.properties.name] = { owner: null };
+        });
+
+    updateLabels();
+});
+
+/* labels */
+function updateLabels() {
+    g.selectAll(".label").remove();
+
+    if (zoomLevel < 2) return;
+
+    g.selectAll(".label")
+        .data(Object.keys(countries))
+        .enter()
+        .append("text")
+        .attr("class", "label")
+        .attr("x", d => {
+            const feature = d3.selectAll("path").data().find(f => f.properties.name === d);
+            return path.centroid(feature)[0];
+        })
+        .attr("y", d => {
+            const feature = d3.selectAll("path").data().find(f => f.properties.name === d);
+            return path.centroid(feature)[1];
+        })
+        .text(d => d);
+}
+
+/* select */
 function selectCountry(name) {
     const box = document.getElementById("infoBox");
     const country = countries[name];
 
     box.style.display = "block";
-
     box.innerHTML = `
-        <h2>${name}</h2>
-        <p>Owner: ${country.owner ? country.owner : "Free"}</p>
-        ${
-            country.owner
-            ? ""
-            : `<button onclick="claimCountry('${name}')">Claim</button>`
-        }
+        <h3>${name}</h3>
+        <p>Owner: ${country.owner || "Free"}</p>
+        ${!country.owner ? `<button onclick="claimCountry('${name}')">Claim</button>` : ""}
     `;
 }
 
+/* claim */
 function claimCountry(name) {
     let player = localStorage.getItem("playerName");
 
@@ -97,12 +151,9 @@ function claimCountry(name) {
 
     countries[name].owner = player;
 
-    // оцветяване
-    document.querySelectorAll(".country").forEach(el => {
-        if (el.innerText === name) {
-            el.classList.add("taken");
-        }
-    });
+    d3.selectAll("path")
+        .filter(d => d.properties.name === name)
+        .classed("claimed", true);
 
     selectCountry(name);
 }
