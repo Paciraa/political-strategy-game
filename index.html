@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <title>World Strategy Game</title>
+
 <style>
 body {
     margin: 0;
@@ -19,12 +20,24 @@ body {
     position: relative;
 }
 
+/* държава */
 .country {
     position: absolute;
-    padding: 5px 10px;
-    background: rgba(0,0,0,0.6);
+    padding: 6px 10px;
+    background: rgba(0,0,0,0.5);
     cursor: pointer;
-    border-radius: 5px;
+    border-radius: 6px;
+    transition: 0.2s;
+}
+
+/* hover */
+.country:hover {
+    background: #3498db;
+}
+
+/* когато е взета */
+.taken {
+    background: #e74c3c !important;
 }
 
 #infoBox {
@@ -35,9 +48,11 @@ body {
     padding: 15px;
     border-radius: 10px;
     display: none;
+    width: 200px;
 }
 </style>
 </head>
+
 <body>
 
 <div id="map">
@@ -49,15 +64,47 @@ body {
 <div id="infoBox"></div>
 
 <script>
+let countries = {
+    Bulgaria: { owner: null },
+    Ukraine: { owner: null },
+    Egypt: { owner: null }
+};
+
 function selectCountry(name) {
     const box = document.getElementById("infoBox");
+    const country = countries[name];
+
     box.style.display = "block";
+
     box.innerHTML = `
         <h2>${name}</h2>
-        <p>Population: ???</p>
-        <p>Army: ???</p>
-        <button onclick="alert('Soon: claim country')">Claim</button>
+        <p>Owner: ${country.owner ? country.owner : "Free"}</p>
+        ${
+            country.owner
+            ? ""
+            : `<button onclick="claimCountry('${name}')">Claim</button>`
+        }
     `;
+}
+
+function claimCountry(name) {
+    let player = localStorage.getItem("playerName");
+
+    if (!player) {
+        player = prompt("Enter your name:");
+        localStorage.setItem("playerName", player);
+    }
+
+    countries[name].owner = player;
+
+    // оцветяване
+    document.querySelectorAll(".country").forEach(el => {
+        if (el.innerText === name) {
+            el.classList.add("taken");
+        }
+    });
+
+    selectCountry(name);
 }
 </script>
 
