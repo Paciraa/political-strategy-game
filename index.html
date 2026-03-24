@@ -25,11 +25,14 @@ svg {
     stroke: #111;
     stroke-width: 0.5;
     cursor: pointer;
+    transition: 0.15s;
 }
 
 /* hover */
-.country:hover {
+country:hover {
     fill: white;
+    stroke: #ffffff;
+    stroke-width: 1.5;
 }
 
 /* claimed */
@@ -40,8 +43,14 @@ svg {
 /* текст */
 .label {
     fill: white;
-    font-size: 10px;
+    font-size: 8px;
+    text-anchor: middle;
     pointer-events: none;
+
+    /* outline за четимост */
+    stroke: black;
+    stroke-width: 0.5px;
+    paint-order: stroke;
 }
 
 /* info */
@@ -72,9 +81,14 @@ let zoomLevel = 1;
 
 /* zoom */
 svg.call(d3.zoom()
-    .scaleExtent([1, 8])
+    .scaleExtent([1, 6])
+    .filter(event => {
+        // позволява scroll zoom, но не при ctrl (по-естествено)
+        return !event.ctrlKey;
+    })
     .on("zoom", (event) => {
         zoomLevel = event.transform.k;
+
         g.attr("transform", event.transform);
 
         updateLabels();
@@ -109,22 +123,31 @@ d3.json("world.geojson").then(data => {
 function updateLabels() {
     g.selectAll(".label").remove();
 
-    if (zoomLevel < 2) return;
+    const features = d3.selectAll("path").data();
 
     g.selectAll(".label")
-        .data(Object.keys(countries))
+        .data(features)
         .enter()
         .append("text")
         .attr("class", "label")
-        .attr("x", d => {
-            const feature = d3.selectAll("path").data().find(f => f.properties.name === d);
-            return path.centroid(feature)[0];
+        .attr("x", d => path.centroid(d)[0])
+        .attr("y", d => path.centroid(d)[1])
+        .text(d => d.properties.name)
+        .style("display", d => {
+
+            const area = path.area(d);
+
+            // 🔥 логика против overlap
+            if (zoomLevel < 2 && area < 200) return "none";
+            if (zoomLevel < 3 && area < 100) return "none";
+
+            return "block";
         })
-        .attr("y", d => {
-            const feature = d3.selectAll("path").data().find(f => f.properties.name === d);
-            return path.centroid(feature)[1];
-        })
-        .text(d => d);
+        .style("font-size", () => {
+            if (zoomLevel < 2) return "8px";
+            if (zoomLevel < 4) return "10px";
+            return "12px";
+        });
 }
 
 /* select */
